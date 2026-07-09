@@ -1,0 +1,45 @@
+name: 로또 당첨번호 주간 갱신
+
+on:
+  schedule:
+    # 추첨: 매주 토요일 20:35 KST. 결과 반영 여유를 두고 두 번 시도한다.
+    # cron은 UTC 기준 (KST = UTC+9)
+    - cron: "30 13 * * 6"   # 토 22:30 KST
+    - cron: "0 1 * * 0"     # 일 10:00 KST (백업)
+  workflow_dispatch:         # 수동 실행 버튼
+
+# 워크플로가 리포에 커밋할 수 있도록 쓰기 권한 부여
+permissions:
+  contents: write
+
+concurrency:
+  group: update-lotto
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 리포 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 신규 회차 크롤링
+        run: python update_lotto.py
+
+      - name: 변경 시 커밋 & 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain lotto.json)" ]; then
+            git add lotto.json
+            git commit -m "chore: 로또 당첨번호 자동 갱신 ($(date -u +%Y-%m-%d))"
+            git push
+            echo "✅ lotto.json 갱신 & 푸시 완료"
+          else
+            echo "ℹ️ 새 회차 없음 — 변경사항 없음"
+          fi
