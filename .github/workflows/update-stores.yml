@@ -1,0 +1,46 @@
+name: 로또 배출점 주간 갱신
+
+on:
+  schedule:
+    # 배출점(1·2등 당첨점)은 추첨 며칠 뒤 확정된다. 당첨번호보다 여유를 두고
+    # 여러 번 시도하며, 아직 미확정인 회차는 다음 실행에서 자동 재시도한다.
+    # cron은 UTC 기준 (KST = UTC+9)
+    - cron: "0 2 * * 0"    # 일 11:00 KST
+    - cron: "0 2 * * 2"    # 화 11:00 KST (배출점 확정 지연 대비 보강)
+  workflow_dispatch:        # 수동 실행 버튼
+
+# 워크플로가 리포에 커밋할 수 있도록 쓰기 권한 부여
+permissions:
+  contents: write
+
+concurrency:
+  group: update-stores
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 리포 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 배출점 크롤링
+        run: python update_stores.py
+
+      - name: 변경 시 커밋 & 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain stores.json)" ]; then
+            git add stores.json
+            git commit -m "chore: 로또 배출점 자동 갱신 ($(date -u +%Y-%m-%d))"
+            git push
+            echo "✅ stores.json 갱신 & 푸시 완료"
+          else
+            echo "ℹ️ 새 배출점 없음 — 변경사항 없음"
+          fi
