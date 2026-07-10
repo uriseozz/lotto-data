@@ -13,6 +13,7 @@ import json, os, time, urllib.request, datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "stores.json")
+META = os.path.join(HERE, "stores_meta.json")  # 앱이 14MB 받기 전 최신 회차만 싸게 확인
 LOTTO = os.path.join(HERE, "lotto.json")  # 최신 회차(target) 참조용
 API = ("https://www.dhlottery.co.kr/wnprchsplcsrch/selectLtWnShp.do"
        "?srchWnShpRnk=all&srchLtEpsd={}")
@@ -141,6 +142,17 @@ def main():
     }
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
+
+    # 앱용 경량 메타(최신 회차만) — 전체 stores.json(수십 MB) 다운로드 게이트
+    meta = {
+        "latest": latest,
+        "count": len(stores),
+        "updated_at": doc["updated_at"],
+        "generated_at": doc["generated_at"],
+    }
+    with open(META, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, separators=(",", ":"))
+
     print(f"wrote stores.json: +{added_rounds}회차/{added_rows}행, "
           f"latest={latest}, 총 {len(stores)}행")
 
