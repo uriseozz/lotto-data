@@ -36,11 +36,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain stores.json)" ]; then
-            git add stores.json
+          if [ -n "$(git status --porcelain stores.json stores_meta.json)" ]; then
+            git add stores.json stores_meta.json
             git commit -m "chore: 로또 배출점 자동 갱신 ($(date -u +%Y-%m-%d))"
             git push
-            echo "✅ stores.json 갱신 & 푸시 완료"
+            echo "✅ stores.json/stores_meta.json 갱신 & 푸시 완료"
           else
             echo "ℹ️ 새 배출점 없음 — 변경사항 없음"
           fi

@@ -124,37 +124,57 @@ def main():
         print(f"round {rnd}: +{len(rows)}개 배출점")
         time.sleep(0.25)
 
-    if added_rounds == 0:
-        print("새 회차 없음 — stores.json 변경 없음")
-        return
-
-    stores.sort(key=lambda r: (r["round"], r["rank"] or 0, r["shop_id"] or ""))
+    now_date = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    now_iso = datetime.datetime.utcnow().isoformat() + "Z"
     latest = max(have) if have else target
-    doc = {
-        "latest": latest,
-        "start": START,
-        "updated_at": datetime.datetime.utcnow().strftime("%Y-%m-%d"),
-        "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
-        "rounds_count": len(have),
-        "count": len(stores),
-        "empty": sorted(empty),
-        "stores": stores,
-    }
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
 
-    # 앱용 경량 메타(최신 회차만) — 전체 stores.json(수십 MB) 다운로드 게이트
-    meta = {
+    # 신규 회차가 있으면 stores.json을 다시 쓴다.
+    if added_rounds > 0:
+        stores.sort(key=lambda r: (r["round"], r["rank"] or 0, r["shop_id"] or ""))
+        doc = {
+            "latest": latest,
+            "start": START,
+            "updated_at": now_date,
+            "generated_at": now_iso,
+            "rounds_count": len(have),
+            "count": len(stores),
+            "empty": sorted(empty),
+            "stores": stores,
+        }
+        with open(OUT, "w", encoding="utf-8") as f:
+            json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
+        print(f"wrote stores.json: +{added_rounds}회차/{added_rows}행, "
+              f"latest={latest}, 총 {len(stores)}행")
+    else:
+        print("새 회차 없음 — stores.json 변경 없음")
+
+    # 앱용 경량 메타(최신 회차만) — 전체 stores.json(수십 MB) 다운로드 게이트.
+    # ★ 신규 회차가 없어도 '항상' stores.json의 실제 latest와 일치시킨다(자가치유).
+    #   과거엔 added_rounds==0이면 여기서 return 해 메타를 안 썼다 → stores.json은
+    #   앞서 갱신됐는데 메타만 옛 회차에 멈춰(예: 1231), 앱이 "메타 latest <= 로컬
+    #   max"로 오판해 stores.json 다운로드를 영구히 건너뛰고 명당이 갱신되지 않았다.
+    #   이제 메타가 뒤처지면 신규 회차 없는 실행에서도 스스로 바로잡는다.
+    want_meta = {
         "latest": latest,
         "count": len(stores),
-        "updated_at": doc["updated_at"],
-        "generated_at": doc["generated_at"],
+        "updated_at": now_date,
+        "generated_at": now_iso,
     }
-    with open(META, "w", encoding="utf-8") as f:
-        json.dump(meta, f, ensure_ascii=False, separators=(",", ":"))
-
-    print(f"wrote stores.json: +{added_rounds}회차/{added_rows}행, "
-          f"latest={latest}, 총 {len(stores)}행")
+    cur_meta = None
+    if os.path.exists(META):
+        try:
+            with open(META, encoding="utf-8") as f:
+                cur_meta = json.load(f)
+        except Exception:
+            cur_meta = None
+    # latest/count가 이미 일치하면 재작성 안 함(타임스탬프만 바뀌는 무의미 커밋 방지).
+    if not cur_meta or cur_meta.get("latest") != latest \
+            or cur_meta.get("count") != len(stores):
+        with open(META, "w", encoding="utf-8") as f:
+            json.dump(want_meta, f, ensure_ascii=False, separators=(",", ":"))
+        print(f"wrote stores_meta.json: latest={latest}, count={len(stores)}")
+    else:
+        print("stores_meta.json 이미 최신 — 변경 없음")
 
 
 if __name__ == "__main__":
